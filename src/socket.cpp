@@ -90,7 +90,7 @@ namespace sockslib {
 #else
         // Close the socket if the socket handle is valid
         if(handle_valid(_socket_handle)) {
-            if(_port.has_value()) {
+            if(_address.has_value()) {
                 shutdown(_socket_handle, SHUT_RDWR);
             }
             else {
@@ -209,7 +209,7 @@ namespace sockslib {
         struct sockaddr_in address;
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = INADDR_ANY;
-        address.sin_port = htons(_port.get());
+        address.sin_port = htons(_port);
         if(::bind(_socket_handle, (struct sockaddr*)&address, sizeof(address)) < 0) {
             return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
@@ -217,7 +217,7 @@ namespace sockslib {
         struct sockaddr_in address;
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = htons(INADDR_ANY);
-        address.sin_port = htons(_port.get());
+        address.sin_port = htons(_port);
         if(::bind(_socket_handle, (struct sockaddr*)&address, sizeof(address)) < 0) {
             return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }

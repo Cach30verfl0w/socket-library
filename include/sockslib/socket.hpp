@@ -43,6 +43,7 @@ namespace sockslib {
 
     class Socket final {
         SocketHandle _socket_handle;
+        kstd::Option<std::string> _address;
         kstd::u16 _buffer_size;
         kstd::u16 _port;
         SocketType _type;
