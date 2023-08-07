@@ -207,7 +207,7 @@ namespace sockslib {
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = INADDR_ANY;
         address.sin_port = htons(_port.get());
-        if(::bind(_socket_handle, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        if(::bind(_socket_handle, (struct sockaddr*)&address, sizeof(address)) == -1) {
             return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
 #endif
