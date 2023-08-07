@@ -10,6 +10,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <cstdio>
+
 namespace sockslib {
     [[nodiscard]] auto get_last_error() -> std::string {
         return fmt::format("ERROR 0x{:X}: {}", errno, strerror(errno));
@@ -23,7 +25,13 @@ namespace sockslib {
     ServerSocket::ServerSocket(kstd::u16 port, ProtocolType protocol_type, kstd::u16 buffer_size) :
             Socket {protocol_type, buffer_size} {
         // Create socket and validate socket
-        _socket_handle = socket(AF_INET, static_cast<int>(protocol_type), 0);
+        kstd::u32 protocol = 0;
+        switch(protocol_type) {
+            case ProtocolType::TCP: protocol = IPPROTO_TCP; break;
+            case ProtocolType::UDP: protocol = IPPROTO_UDP; break;
+        }
+
+        _socket_handle = socket(AF_INET, static_cast<int>(protocol_type), protocol);
         if(handle_invalid(_socket_handle)) {
             throw std::runtime_error {fmt::format("Unable to initialize socket => {}", get_last_error())};
         }
@@ -41,11 +49,19 @@ namespace sockslib {
         if(::bind(_socket_handle, (struct sockaddr*) &address, sizeof(address)) < 0) {
             throw std::runtime_error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
+
+        if (protocol_type != ProtocolType::UDP) {
+            // Listen with the socket
+            if (::listen(_socket_handle, SOMAXCONN) < 0) {
+                throw std::runtime_error {fmt::format("Unable to listen with socket => {}", get_last_error())};
+            }
+        }
     }
 
     ServerSocket::ServerSocket(ServerSocket&& other) noexcept :
             Socket {} {
         Socket::_socket_handle = other._socket_handle;
+        _buffer_size = other._buffer_size;
         other._socket_handle = 0;
     }
 
@@ -56,8 +72,9 @@ namespace sockslib {
     }
 
     auto ServerSocket::operator=(ServerSocket&& other) noexcept -> ServerSocket& {
-        Socket::_socket_handle = other._socket_handle;
-        Socket::_protocol_type = other._protocol_type;
+        _socket_handle = other._socket_handle;
+        _protocol_type = other._protocol_type;
+        _buffer_size = other._buffer_size;
         other.Socket::_socket_handle = 0;
         return *this;
     }
@@ -73,7 +90,7 @@ namespace sockslib {
         }
 
         // Convert address to binary representation
-        struct sockaddr_in sockaddr;
+        struct sockaddr_in sockaddr {};
         sockaddr.sin_family = AF_INET;
         sockaddr.sin_port = htons(port);
 
@@ -107,13 +124,16 @@ namespace sockslib {
 
     ClientSocket::ClientSocket(ClientSocket&& other) noexcept :
             Socket {} {
-        Socket::_socket_handle = other._socket_handle;
+        _socket_handle = other._socket_handle;
+        _protocol_type = other._protocol_type;
+        _buffer_size = other._buffer_size;
         other._socket_handle = 0;
     }
 
     auto ClientSocket::operator=(ClientSocket&& other) noexcept -> ClientSocket& {
-        Socket::_socket_handle = other._socket_handle;
-        Socket::_protocol_type = other._protocol_type;
+        _socket_handle = other._socket_handle;
+        _protocol_type = other._protocol_type;
+        _buffer_size = other._buffer_size;
         other.Socket::_socket_handle = 0;
         return *this;
     }

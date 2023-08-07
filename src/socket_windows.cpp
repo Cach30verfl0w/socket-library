@@ -117,10 +117,12 @@ namespace sockslib {
         }
     }
 
-    ServerSocket::ServerSocket(ServerSocket&& other) noexcept :
+    ServerSocket::ServerSocket(ServerSocket&& other) noexcept :// NOLINT
             Socket {},
             _addr_info {other._addr_info} {
-        Socket::_socket_handle = other._socket_handle;
+        _socket_handle = other._socket_handle;
+        _protocol_type = other._protocol_type;
+        _buffer_size = other._buffer_size;
         other._socket_handle = 0;
         other._addr_info = nullptr;
         ++Socket::_socket_count;
@@ -150,10 +152,12 @@ namespace sockslib {
     }
 
     auto ServerSocket::operator=(ServerSocket&& other) noexcept -> ServerSocket& {
-        Socket::_socket_handle = other._socket_handle;
-        Socket::_protocol_type = other._protocol_type;
-        other.Socket::_socket_handle = 0;
+        _socket_handle = other._socket_handle;
+        _protocol_type = other._protocol_type;
+        _buffer_size = other._buffer_size;
         _addr_info = other._addr_info;
+
+        other._socket_handle = 0;
         other._addr_info = nullptr;
         ++Socket::_socket_count;
         return *this;
@@ -214,8 +218,9 @@ namespace sockslib {
 
     ClientSocket::ClientSocket(sockslib::ClientSocket&& other) noexcept :
             Socket {} {
-        Socket::_socket_handle = other._socket_handle;
-        Socket::_protocol_type = other._protocol_type;
+        _socket_handle = other._socket_handle;
+        _protocol_type = other._protocol_type;
+        _buffer_size = other._buffer_size;
         other.Socket::_socket_handle = 0;
         ++Socket::_socket_count;
     }
@@ -239,8 +244,9 @@ namespace sockslib {
     }
 
     auto ClientSocket::operator=(ClientSocket&& other) noexcept -> ClientSocket& {
-        Socket::_socket_handle = other._socket_handle;
-        Socket::_protocol_type = other._protocol_type;
+        _socket_handle = other._socket_handle;
+        _protocol_type = other._protocol_type;
+        _buffer_size = other._buffer_size;
         other.Socket::_socket_handle = 0;
         ++Socket::_socket_count;
         return *this;
