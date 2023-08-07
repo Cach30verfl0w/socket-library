@@ -1,8 +1,8 @@
 #pragma once
 
-#include <kstd/option.hpp>
-#include <kstd/result.hpp>
 #include <kstd/types.hpp>
+#include <kstd/result.hpp>
+#include <string>
 
 #ifdef PLATFORM_WINDOWS
 #define NOMINMAX
@@ -36,34 +36,44 @@ namespace sockslib {
 
     [[nodiscard]] auto get_last_error() -> std::string;
 
-    enum class SocketType : kstd::u8 {
+    enum class ProtocolType : kstd::u8 {
         TCP = SOCK_STREAM,
         UDP = SOCK_DGRAM
     };
 
-    class Socket final {
-        SocketHandle _socket_handle;
-        kstd::Option<std::string> _address;
+    class Socket {
+        protected:
+        SocketHandle _socket_handle;// NOLINT
+        ProtocolType _protocol_type;// NOLINT
         kstd::u16 _buffer_size;
-        kstd::u16 _port;
-        SocketType _type;
+        static kstd::atomic_usize _socket_count;// NOLINT
+
+        Socket(ProtocolType protocol_type, kstd::u16 buffer_size);
+        Socket() noexcept = default;
+    };
+
+    class ServerSocket final : Socket {// NOLINT
 #ifdef PLATFORM_WINDOWS
         PADDRINFOW _addr_info;
-        static kstd::atomic_usize _socket_count; // NOLINT
 #endif
-
-        [[nodiscard]] auto initialize(bool server) -> kstd::Result<void>;
-        [[nodiscard]] auto bind() noexcept -> kstd::Result<void>;
-        [[nodiscard]] auto connect() noexcept -> kstd::Result<void>;
-
         public:
-        Socket(kstd::u16 port, SocketType type, kstd::u16 buffer_size);
-        Socket(std::string address, kstd::u16 port, SocketType type, kstd::u16 buffer_size);
-        Socket(const Socket& other) = delete;
-        Socket(Socket&& other) noexcept;
-        ~Socket() noexcept;
+        ServerSocket(kstd::u16 port, ProtocolType protocol_type, kstd::u16 buffer_size);
+        ServerSocket(const ServerSocket& other) = delete;
+        ServerSocket(ServerSocket&& other) noexcept;
+        ~ServerSocket() noexcept;
 
-        auto operator=(const Socket& other) -> Socket& = delete;
-        auto operator=(Socket&& other) noexcept -> Socket&;
+        auto operator=(const ServerSocket& other) -> ServerSocket& = delete;
+        auto operator=(ServerSocket&& other) noexcept -> ServerSocket&;
     };
-}
+
+    class ClientSocket final : Socket {// NOLINT
+        public:
+        ClientSocket(std::string address, kstd::u16 port, ProtocolType protocol_type, kstd::u16 buffer_size);
+        ClientSocket(const ClientSocket& other) = delete;
+        ClientSocket(ClientSocket&& other) noexcept;
+        ~ClientSocket() noexcept;
+
+        auto operator=(const ClientSocket& other) -> ClientSocket& = delete;
+        auto operator=(ClientSocket&& other) noexcept -> ClientSocket&;
+    };
+}// namespace sockslib
