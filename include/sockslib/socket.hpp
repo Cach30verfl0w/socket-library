@@ -44,20 +44,21 @@ namespace sockslib {
     class Socket final {
         SocketHandle _socket_handle;
         kstd::u16 _buffer_size;
-        kstd::Option<kstd::u16> _port;
+        kstd::u16 _port;
         SocketType _type;
 #ifdef PLATFORM_WINDOWS
         PADDRINFOW _addr_info;
         static kstd::atomic_usize _socket_count; // NOLINT
 #endif
 
+        [[nodiscard]] auto initialize(bool server) -> kstd::Result<void>;
+        [[nodiscard]] auto bind() noexcept -> kstd::Result<void>;
+
         public:
-        Socket(kstd::Option<kstd::u16> port, SocketType type, kstd::u16 buffer_size);
+        Socket(kstd::u16 port, SocketType type, kstd::u16 buffer_size);
         Socket(const Socket& other) = delete;
         Socket(Socket&& other) noexcept;
         ~Socket() noexcept;
-
-        auto bind() -> kstd::Result<void>;
 
         auto operator=(const Socket& other) -> Socket& = delete;
         auto operator=(Socket&& other) noexcept -> Socket&;

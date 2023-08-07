@@ -42,60 +42,12 @@ namespace sockslib {
 #endif
     }
 
-    Socket::Socket(kstd::Option<kstd::u16> port, SocketType type, kstd::u16 buffer_size) :// NOLINT
+    Socket::Socket(kstd::u16 port, SocketType type, kstd::u16 buffer_size) :// NOLINT
             _buffer_size {buffer_size},
             _port {port},
             _type {type} {
-#if defined(PLATFORM_WINDOWS)
-        if(_socket_count == 0) {
-            WSADATA wsaData {};
-            if(FAILED(WSAStartup(MAKEWORD(2, 2), &wsaData))) {
-                throw std::runtime_error(fmt::format("Unable to initialize WSA => {}", get_last_error()));
-            }
-            ++_socket_count;
-        }
-
-        ADDRINFOW hints {};
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = static_cast<int>(type);
-        switch(type) {
-            case SocketType::TCP: hints.ai_protocol = IPPROTO_TCP; break;
-            case SocketType::UDP: hints.ai_protocol = IPPROTO_UDP; break;
-        }
-
-        if(port.has_value()) {
-            hints.ai_flags = AI_PASSIVE;
-        }
-
-        // Resolve address information
-        if(FAILED(GetAddrInfoW(nullptr, std::to_wstring(port.get_or(1337)).c_str(), &hints, &_addr_info))) {
-            if(_socket_count == 1) {
-                WSACleanup();
-            }
-            --_socket_count;
-            throw std::runtime_error(fmt::format("Unable to resolve address information => {}", get_last_error()));
-        }
-
-        // Create the socket
-        _socket_handle = socket(_addr_info->ai_family, _addr_info->ai_socktype, _addr_info->ai_protocol);
-#elif defined(PLATFORM_LINUX)
-        _socket_handle = socket(AF_INET, static_cast<int>(type), 0);
-#else
-        _socket_handle = socket(PF_INET, static_cast<int>(type), 0);
-#endif
-
-        if(handle_invalid(_socket_handle)) {
-#ifdef PLATFORM_WINDOWS
-            FreeAddrInfoW(_addr_info);
-            _addr_info = nullptr;
-            if(_socket_count == 1) {
-                WSACleanup();
-            }
-
-            --_socket_count;
-#endif
-            throw std::runtime_error(fmt::format("Unable to initialize socket => {}", get_last_error()));
-        }
+        initialize(true).throw_if_error();
+        bind().throw_if_error();
     }
 
     Socket::Socket(sockslib::Socket&& other) noexcept :
@@ -148,15 +100,64 @@ namespace sockslib {
 #endif
     }
 
-    auto Socket::bind() -> kstd::Result<void> {
+    [[nodiscard]] auto Socket::initialize(bool server) -> kstd::Result<void> {
+#if defined(PLATFORM_WINDOWS)
+        if(_socket_count == 0) {
+            WSADATA wsaData {};
+            if(FAILED(WSAStartup(MAKEWORD(2, 2), &wsaData))) {
+                return kstd::Error { fmt::format("Unable to initialize WSA => {}", get_last_error()) };
+            }
+            ++_socket_count;
+        }
+
+        ADDRINFOW hints {};
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = static_cast<int>(_type);
+        switch(_type) {
+            case SocketType::TCP: hints.ai_protocol = IPPROTO_TCP; break;
+            case SocketType::UDP: hints.ai_protocol = IPPROTO_UDP; break;
+        }
+        if (server) {
+            hints.ai_flags = AI_PASSIVE;
+        }
+
+        // Resolve address information
+        if(FAILED(GetAddrInfoW(nullptr, std::to_wstring(_port).c_str(), &hints, &_addr_info))) {
+            if(_socket_count == 1) {
+                WSACleanup();
+            }
+            --_socket_count;
+            return kstd::Error { fmt::format("Unable to resolve address information => {}", get_last_error()) };
+        }
+
+        // Create the socket
+        _socket_handle = socket(_addr_info->ai_family, _addr_info->ai_socktype, _addr_info->ai_protocol);
+#elif defined(PLATFORM_LINUX)
+        _socket_handle = socket(AF_INET, static_cast<int>(_type), 0);
+#else
+        _socket_handle = socket(PF_INET, static_cast<int>(_type), 0);
+#endif
+
+        if(handle_invalid(_socket_handle)) {
+#ifdef PLATFORM_WINDOWS
+            FreeAddrInfoW(_addr_info);
+            _addr_info = nullptr;
+            if(_socket_count == 1) {
+                WSACleanup();
+            }
+
+            --_socket_count;
+#endif
+            return kstd::Error { fmt::format("Unable to initialize socket => {}", get_last_error()) };
+        }
+        return {};
+    }
+
+    [[nodiscard]] auto Socket::bind() noexcept -> kstd::Result<void> {
         using namespace std::string_literals;
 
         if(handle_invalid(_socket_handle)) {
             return kstd::Error {"Unable to bind socket => Socket handle is not valid!"s};
-        }
-
-        if(_port.is_empty()) {
-            return kstd::Error {"Unable to bind socket => The port is not specified!"s};
         }
 
 #if defined(PLATFORM_WINDOWS)
