@@ -289,25 +289,15 @@ namespace sockslib {
 
         if(inet_pton(AF_INET, _address.get().c_str(), &address.sin_addr)) {
             // Free address info and close socket
-            closesocket(_socket_handle);
-
-            // Decrement socket count
-            if(_socket_count > 0) {
-                --_socket_count;
-            }
+            close(_socket_handle);
 
             return kstd::Error {
                     "Unable to connect with socket => Failed conversion of literal address to binary address!"s};
         }
 
-        if(connect(_socket_handle, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0) {
+        if(::connect(_socket_handle, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0) {
             // Free address info and close socket
-            closesocket(_socket_handle);
-
-            // Decrement socket count
-            if(_socket_count > 0) {
-                --_socket_count;
-            }
+            close(_socket_handle);
 
             auto last_error = get_last_error();
             if(last_error.empty()) {
