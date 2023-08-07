@@ -12,6 +12,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <unistd.h>
 #endif
 
 namespace sockslib {
@@ -121,7 +122,7 @@ namespace sockslib {
         }
 
         // Cleanup WSA
-        if (_socket_count == 1) {
+        if(_socket_count == 1) {
             WSACleanup();
         }
 
@@ -133,9 +134,10 @@ namespace sockslib {
 #else
         // Close the socket if the socket handle is valid
         if(handle_valid(_socket_handle)) {
-            if (_port.has_value()) {
+            if(_port.has_value()) {
                 shutdown(_socket_handle, SHUT_RDWR);
-            } else {
+            }
+            else {
                 close(_socket_handle);
             }
         }
@@ -145,13 +147,17 @@ namespace sockslib {
     auto Socket::bind() -> kstd::Result<void> {
         using namespace std::string_literals;
 
-        if (handle_invalid(_socket_handle)) {
-            return kstd::Error { "Unable to bind socket => Socket handle is not valid!"s };
+        if(handle_invalid(_socket_handle)) {
+            return kstd::Error {"Unable to bind socket => Socket handle is not valid!"s};
+        }
+
+        if(_port.is_empty()) {
+            return kstd::Error {"Unable to bind socket => The port is not specified!"s};
         }
 
 #ifdef PLATFORM_WINDOWS
         // Bind the socket
-        if (FAILED(::bind(_socket_handle, _addr_info->ai_addr, static_cast<int>(_addr_info->ai_addrlen)))) {
+        if(FAILED(::bind(_socket_handle, _addr_info->ai_addr, static_cast<int>(_addr_info->ai_addrlen)))) {
 
             // Free address info and close socket
             FreeAddrInfoW(_addr_info);
@@ -159,7 +165,7 @@ namespace sockslib {
             closesocket(_socket_handle);
 
             // Cleanup WSA and decrement socket count
-            if (_socket_count == 1) {
+            if(_socket_count == 1) {
                 WSACleanup();
             }
 
@@ -167,19 +173,19 @@ namespace sockslib {
                 --_socket_count;
             }
 
-            return kstd::Error { fmt::format("Unable to bind socket => {}", get_last_error()) };
+            return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
 
         // Listen with socket if protocol is TCP
-        if (_type == SocketType::TCP) {
-            if (FAILED(listen(_socket_handle, SOMAXCONN))) {
+        if(_type == SocketType::TCP) {
+            if(FAILED(listen(_socket_handle, SOMAXCONN))) {
                 // Free address info and close socket
                 FreeAddrInfoW(_addr_info);
                 _addr_info = nullptr;
                 closesocket(_socket_handle);
 
                 // Cleanup WSA and decrement socket count
-                if (_socket_count == 1) {
+                if(_socket_count == 1) {
                     WSACleanup();
                 }
 
@@ -187,20 +193,20 @@ namespace sockslib {
                     --_socket_count;
                 }
 
-                return kstd::Error { fmt::format("Unable to bind socket => {}", get_last_error()) };
+                return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
             }
         }
 #else
-        if (setsockopt(_socket_handle, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &_port, sizeof(&_port))) {
-            return kstd::Error { fmt::format("Unable to bind socket => {}", get_last_error()) };
+        if(setsockopt(_socket_handle, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &_port, sizeof(&_port))) {
+            return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
 
         struct sockaddr_in address;
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = INADDR_ANY;
-        address.sin_port = htons(PORT);
-        if (bind(_socket_handle, &address, sizeof(address)) < 0) {
-            return kstd::Error { fmt::format("Unable to bind socket => {}", get_last_error()) };
+        address.sin_port = htons(_port.get());
+        if(bind(_socket_handle, &address, sizeof(address)) < 0) {
+            return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
 #endif
         return {};
@@ -209,12 +215,12 @@ namespace sockslib {
     auto Socket::operator=(Socket&& other) noexcept -> Socket& {
         _socket_handle = other._socket_handle;
         _buffer_size = other._buffer_size;
-        _addr_info = other._addr_info;
         _port = other._port;
         _type = other._type;
 
         other._socket_handle = 0;
 #ifdef PLATFORM_WINDOWS
+        _addr_info = other._addr_info;
         other._addr_info = nullptr;
         ++_socket_count;
 #endif
