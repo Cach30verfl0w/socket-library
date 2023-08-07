@@ -8,7 +8,10 @@ TEST(sockslib_Socket, test_bind_tcp_socket_init_without_port) {
     ASSERT_TRUE(socket_result);
 
     auto bind_result = socket_result.get().bind();
-    ASSERT_TRUE(bind_result);
+    ASSERT_FALSE(bind_result);
+
+    using namespace std::string_literals;
+    ASSERT_EQ(bind_result.get_error(), "Unable to bind socket => The port is not specified!"s);
 }
 
 TEST(sockslib_Socket, test_bind_tcp_socket_init_with_port) {
@@ -24,7 +27,10 @@ TEST(sockslib_Socket, test_bind_udp_socket_init_without_port) {
     ASSERT_TRUE(socket_result);
 
     auto bind_result = socket_result.get().bind();
-    ASSERT_TRUE(bind_result);
+    ASSERT_FALSE(bind_result);
+
+    using namespace std::string_literals;
+    ASSERT_EQ(bind_result.get_error(), "Unable to bind socket => The port is not specified!"s);
 }
 
 TEST(sockslib_Socket, test_bind_udp_socket_init_with_port) {

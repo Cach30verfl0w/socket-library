@@ -15,11 +15,11 @@ namespace sockslib {
 #ifdef PLATFORM_WINDOWS
     using SocketHandle = SOCKET;
 
-    constexpr auto handle_invalid(SocketHandle handle) -> bool {
+    constexpr auto handle_invalid(SocketHandle handle) noexcept -> bool {
         return handle == INVALID_SOCKET;
     }
 
-    constexpr auto handle_valid(SocketHandle handle) -> bool {
+    constexpr auto handle_valid(SocketHandle handle) noexcept -> bool {
         return handle != INVALID_SOCKET;
     }
 #else
