@@ -28,11 +28,6 @@ namespace sockslib {
             throw std::runtime_error {fmt::format("Unable to initialize socket => {}", get_last_error())};
         }
 
-        // Force the socket to listen on the specific port
-        if(setsockopt(_socket_handle, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &port, sizeof(&port))) {
-            throw std::runtime_error {fmt::format("Unable to initialize socket => {}", get_last_error())};
-        }
-
         // Bind the socket
         struct sockaddr_in address;
         address.sin_family = AF_INET;
