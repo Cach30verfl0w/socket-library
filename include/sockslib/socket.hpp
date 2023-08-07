@@ -54,9 +54,11 @@ namespace sockslib {
 
         [[nodiscard]] auto initialize(bool server) -> kstd::Result<void>;
         [[nodiscard]] auto bind() noexcept -> kstd::Result<void>;
+        [[nodiscard]] auto connect() noexcept -> kstd::Result<void>;
 
         public:
         Socket(kstd::u16 port, SocketType type, kstd::u16 buffer_size);
+        Socket(std::string address, kstd::u16 port, SocketType type, kstd::u16 buffer_size);
         Socket(const Socket& other) = delete;
         Socket(Socket&& other) noexcept;
         ~Socket() noexcept;

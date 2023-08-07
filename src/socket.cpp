@@ -1,6 +1,7 @@
 #include "sockslib/socket.hpp"
 
 #include <fmt/format.h>
+#include <iostream>
 #include <kstd/utils.hpp>
 #include <stdexcept>
 
@@ -25,7 +26,7 @@ namespace sockslib {
         const auto error_code = ::GetLastError();
 
         if(error_code == 0) {
-            return "No error found!";
+            return "";
         }
 
         LPWSTR buffer = nullptr;
@@ -43,11 +44,20 @@ namespace sockslib {
     }
 
     Socket::Socket(kstd::u16 port, SocketType type, kstd::u16 buffer_size) :// NOLINT
-            _buffer_size {buffer_size},
             _port {port},
-            _type {type} {
+            _type {type},
+            _buffer_size {buffer_size} {
         initialize(true).throw_if_error();
         bind().throw_if_error();
+    }
+
+    Socket::Socket(std::string address, kstd::u16 port, SocketType type, kstd::u16 buffer_size) :// NOLINT
+            _address {address},
+            _port {port},
+            _type {type},
+            _buffer_size {buffer_size} {
+        initialize(false).throw_if_error();
+        connect().throw_if_error();
     }
 
     Socket::Socket(sockslib::Socket&& other) noexcept :
@@ -74,6 +84,10 @@ namespace sockslib {
 
         // Free the address info and close the socket if the socket handle is valid
         if(handle_valid(_socket_handle)) {
+            if(_address.has_value()) {
+                shutdown(_socket_handle, SD_SEND);
+            }
+
             closesocket(_socket_handle);
         }
 
@@ -93,9 +107,7 @@ namespace sockslib {
             if(_address.has_value()) {
                 shutdown(_socket_handle, SHUT_RDWR);
             }
-            else {
-                close(_socket_handle);
-            }
+            close(_socket_handle);
         }
 #endif
     }
@@ -105,7 +117,7 @@ namespace sockslib {
         if(_socket_count == 0) {
             WSADATA wsaData {};
             if(FAILED(WSAStartup(MAKEWORD(2, 2), &wsaData))) {
-                return kstd::Error { fmt::format("Unable to initialize WSA => {}", get_last_error()) };
+                return kstd::Error {fmt::format("Unable to initialize WSA => {}", get_last_error())};
             }
             ++_socket_count;
         }
@@ -117,21 +129,27 @@ namespace sockslib {
             case SocketType::TCP: hints.ai_protocol = IPPROTO_TCP; break;
             case SocketType::UDP: hints.ai_protocol = IPPROTO_UDP; break;
         }
-        if (server) {
+        if(server) {
             hints.ai_flags = AI_PASSIVE;
         }
 
-        // Resolve address information
-        if(FAILED(GetAddrInfoW(nullptr, std::to_wstring(_port).c_str(), &hints, &_addr_info))) {
-            if(_socket_count == 1) {
-                WSACleanup();
+        // Resolve address information if server and create socket or simply create socket handle and invalidate addr_info pointer if client
+        if(server) {
+            if(FAILED(GetAddrInfoW(nullptr, std::to_wstring(_port).c_str(), &hints, &_addr_info))) {
+                if(_socket_count == 1) {
+                    WSACleanup();
+                }
+                --_socket_count;
+                return kstd::Error {fmt::format("Unable to resolve address information => {}", get_last_error())};
             }
-            --_socket_count;
-            return kstd::Error { fmt::format("Unable to resolve address information => {}", get_last_error()) };
+
+            _socket_handle = socket(_addr_info->ai_family, _addr_info->ai_socktype, _addr_info->ai_protocol);
+        }
+        else {
+            _socket_handle = socket(AF_INET, hints.ai_socktype, hints.ai_protocol);
+            _addr_info = nullptr;
         }
 
-        // Create the socket
-        _socket_handle = socket(_addr_info->ai_family, _addr_info->ai_socktype, _addr_info->ai_protocol);
 #elif defined(PLATFORM_LINUX)
         _socket_handle = socket(AF_INET, static_cast<int>(_type), 0);
 #else
@@ -148,7 +166,7 @@ namespace sockslib {
 
             --_socket_count;
 #endif
-            return kstd::Error { fmt::format("Unable to initialize socket => {}", get_last_error()) };
+            return kstd::Error {fmt::format("Unable to initialize socket => {}", get_last_error())};
         }
         return {};
     }
@@ -163,7 +181,6 @@ namespace sockslib {
 #if defined(PLATFORM_WINDOWS)
         // Bind the socket
         if(FAILED(::bind(_socket_handle, _addr_info->ai_addr, static_cast<int>(_addr_info->ai_addrlen)))) {
-
             // Free address info and close socket
             FreeAddrInfoW(_addr_info);
             _addr_info = nullptr;
@@ -198,7 +215,11 @@ namespace sockslib {
                     --_socket_count;
                 }
 
-                return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
+                auto last_error = get_last_error();
+                if(last_error.empty()) {
+                    return kstd::Error {"Unable to bind socket => Listen call with socket failed!"s};
+                }
+                return kstd::Error {fmt::format("Unable to bind socket => {}", last_error)};
             }
         }
 #elif defined(PLATFORM_LINUX)
@@ -210,7 +231,7 @@ namespace sockslib {
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = INADDR_ANY;
         address.sin_port = htons(_port);
-        if(::bind(_socket_handle, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        if(::bind(_socket_handle, (struct sockaddr*) &address, sizeof(address)) < 0) {
             return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
 #else
@@ -218,12 +239,87 @@ namespace sockslib {
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = htons(INADDR_ANY);
         address.sin_port = htons(_port);
-        if(::bind(_socket_handle, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        if(::bind(_socket_handle, (struct sockaddr*) &address, sizeof(address)) < 0) {
             return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
 #endif
         return {};
     }
+
+    [[nodiscard]] auto Socket::connect() noexcept -> kstd::Result<void> {
+        using namespace std::string_literals;
+
+        if(handle_invalid(_socket_handle)) {
+            return kstd::Error {"Unable to connect with socket => Socket handle is not valid!"s};
+        }
+
+#if defined(PLATFORM_WINDOWS)
+        SOCKADDR_IN addr {};
+        if(FAILED(InetPton(AF_INET, _address.get().c_str(), &addr.sin_addr.s_addr))) {
+            return kstd::Error {
+                    "Unable to connect with socket => Failed conversion of literal address to binary address!"s};
+        }
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(_port);
+
+        if(FAILED(::connect(_socket_handle, reinterpret_cast<SOCKADDR*>(&addr), sizeof(addr)))) {
+            // Free address info and close socket
+            closesocket(_socket_handle);
+
+            // Cleanup WSA and decrement socket count
+            if(_socket_count == 1) {
+                WSACleanup();
+            }
+
+            if(_socket_count > 0) {
+                --_socket_count;
+            }
+
+            auto last_error = get_last_error();
+            if(last_error.empty()) {
+                return kstd::Error {
+                        "Unable to connect with socket => Establishment of connection with server failed! Maybe the server isn't reachable?"s};
+            }
+            return kstd::Error {fmt::format("Unable to connect with socket => {}", last_error)};
+        }
+#else
+        struct sockaddr_in address;
+        address.sin_family = AF_INET;
+        address.sin_port = htons(_port);
+
+        if(inet_pton(AF_INET, _address.get().c_str(), &address.sin_addr)) {
+            // Free address info and close socket
+            closesocket(_socket_handle);
+
+            // Decrement socket count
+            if(_socket_count > 0) {
+                --_socket_count;
+            }
+
+            return kstd::Error {
+                    "Unable to connect with socket => Failed conversion of literal address to binary address!"s};
+        }
+
+        if(connect(_socket_handle, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0) {
+            // Free address info and close socket
+            closesocket(_socket_handle);
+
+            // Decrement socket count
+            if(_socket_count > 0) {
+                --_socket_count;
+            }
+
+            auto last_error = get_last_error();
+            if(last_error.empty()) {
+                return kstd::Error {
+                        "Unable to connect with socket => Establishment of connection with server failed! Maybe the server isn't reachable?"s};
+            }
+            return kstd::Error {fmt::format("Unable to connect with socket => {}", last_error)};
+        }
+#endif
+        return {};
+    }
+
 
     auto Socket::operator=(Socket&& other) noexcept -> Socket& {
         _socket_handle = other._socket_handle;
