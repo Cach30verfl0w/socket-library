@@ -46,7 +46,7 @@ namespace sockslib {
             _buffer_size {buffer_size},
             _port {port},
             _type {type} {
-#ifdef PLATFORM_WINDOWS
+#if defined(PLATFORM_WINDOWS)
         if(_socket_count == 0) {
             WSADATA wsaData {};
             if(FAILED(WSAStartup(MAKEWORD(2, 2), &wsaData))) {
@@ -78,8 +78,10 @@ namespace sockslib {
 
         // Create the socket
         _socket_handle = socket(_addr_info->ai_family, _addr_info->ai_socktype, _addr_info->ai_protocol);
-#else
+#elif defined(PLATFORM_LINUX)
         _socket_handle = socket(AF_INET, static_cast<int>(type), 0);
+#else
+        _socket_handle = socket(PF_INET, static_cast<int>(type), 0);
 #endif
 
         if(handle_invalid(_socket_handle)) {
@@ -157,7 +159,7 @@ namespace sockslib {
             return kstd::Error {"Unable to bind socket => The port is not specified!"s};
         }
 
-#ifdef PLATFORM_WINDOWS
+#if defined(PLATFORM_WINDOWS)
         // Bind the socket
         if(FAILED(::bind(_socket_handle, _addr_info->ai_addr, static_cast<int>(_addr_info->ai_addrlen)))) {
 
@@ -198,7 +200,7 @@ namespace sockslib {
                 return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
             }
         }
-#else
+#elif defined(PLATFORM_LINUX)
         if(setsockopt(_socket_handle, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &_port, sizeof(&_port))) {
             return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
@@ -207,7 +209,15 @@ namespace sockslib {
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = INADDR_ANY;
         address.sin_port = htons(_port.get());
-        if(::bind(_socket_handle, (struct sockaddr*)&address, sizeof(address)) == -1) {
+        if(::bind(_socket_handle, (struct sockaddr*)&address, sizeof(address)) < 0) {
+            return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
+        }
+#else
+        struct sockaddr_in address;
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = htons(INADDR_ANY);
+        address.sin_port = htons(_port.get());
+        if(::bind(_socket_handle, (struct sockaddr*)&address, sizeof(address)) < 0) {
             return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
 #endif
