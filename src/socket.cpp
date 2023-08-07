@@ -16,7 +16,9 @@
 #endif
 
 namespace sockslib {
-    kstd::atomic_usize Socket::_socket_count = 0;
+#ifdef PLATFORM_WINDOWS
+    kstd::atomic_usize Socket::_socket_count = 0;//NOLINT
+#endif
 
     [[nodiscard]] auto get_last_error() -> std::string {
 #ifdef PLATFORM_WINDOWS
@@ -205,7 +207,7 @@ namespace sockslib {
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = INADDR_ANY;
         address.sin_port = htons(_port.get());
-        if(bind(_socket_handle, &address, sizeof(address)) < 0) {
+        if(::bind(_socket_handle, &address, sizeof(address)) < 0) {
             return kstd::Error {fmt::format("Unable to bind socket => {}", get_last_error())};
         }
 #endif
