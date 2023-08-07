@@ -76,7 +76,7 @@ namespace sockslib {
         // Create the socket
         _socket_handle = socket(_addr_info->ai_family, _addr_info->ai_socktype, _addr_info->ai_protocol);
 #else
-        _socket_handle = socket(AF_INET, type, 0);
+        _socket_handle = socket(AF_INET, static_cast<int>(type), 0);
 #endif
 
         if(handle_invalid(_socket_handle)) {
@@ -101,9 +101,9 @@ namespace sockslib {
             _addr_info {other._addr_info},
 #endif
             _type {other._type} {
-        other._addr_info = nullptr;
         other._socket_handle = 0;
 #ifdef PLATFORM_WINDOWS
+        other._addr_info = nullptr;
         ++_socket_count;
 #endif
     }
@@ -213,9 +213,9 @@ namespace sockslib {
         _port = other._port;
         _type = other._type;
 
-        other._addr_info = nullptr;
         other._socket_handle = 0;
 #ifdef PLATFORM_WINDOWS
+        other._addr_info = nullptr;
         ++_socket_count;
 #endif
         return *this;
