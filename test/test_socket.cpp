@@ -36,4 +36,9 @@ TEST(sockslib_ClientSocket, test_connect_udp_socket) {
 
     auto socket_result = kstd::try_construct<ClientSocket>("127.0.0.1", 1337, ProtocolType::UDP, 512);
     socket_result.throw_if_error();
+    auto& socket = *socket_result;
+
+    int data = 1337;
+    socket.write(&data, sizeof(data)).throw_if_error();
+    // TODO: Receive and validate data
 }
