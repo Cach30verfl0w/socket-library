@@ -13,7 +13,9 @@ include(cmx)
 cmx_include_scripts()
 
 # Library
-cmx_add_library(socket-library "${CMAKE_SOURCE_DIR}/include" "${CMAKE_SOURCE_DIR}/src")
+cmx_add_library(socket-library "${CMAKE_SOURCE_DIR}/src")
+target_include_directories(socket-library PUBLIC "${CMAKE_SOURCE_DIR}/include")
+target_include_directories(socket-library-static PUBLIC "${CMAKE_SOURCE_DIR}/include")
 cmx_include_fmt(socket-library PUBLIC)
 cmx_include_kstd_core(socket-library PUBLIC)
 cmx_include_fmt(socket-library-static PUBLIC)
