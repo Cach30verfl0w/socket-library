@@ -3,6 +3,7 @@
 
 #include <fmt/format.h>
 #include <stdexcept>
+#include <numeric>
 
 #include <WS2tcpip.h>
 
@@ -241,6 +242,19 @@ namespace sockslib {
         if(Socket::_socket_count > 0) {
             --Socket::_socket_count;
         }
+    }
+
+    auto ClientSocket::write(void* data, kstd::usize data_size) noexcept -> kstd::Result<kstd::usize> {
+        using namespace std::string_literals;
+        if (data_size > std::numeric_limits<int>::max()) {
+            data_size = std::numeric_limits<int>::max();
+        }
+
+        auto bytes_sent = ::send(_socket_handle, static_cast<const char*>(data), static_cast<int>(data_size), 0);
+        if (FAILED(bytes_sent)) {
+            return kstd::Error { fmt::format("Unable to write to socket => {}", get_last_error()) };
+        }
+        return bytes_sent;
     }
 
     auto ClientSocket::operator=(ClientSocket&& other) noexcept -> ClientSocket& {

@@ -114,6 +114,19 @@ namespace sockslib {
         }
     }
 
+    auto ClientSocket::write(void* data, kstd::usize data_size) noexcept -> kstd::Result<kstd::usize> {
+        using namespace std::string_literals;
+        if (data_size > std::numeric_limits<int>::max()) {
+            data_size = std::numeric_limits<int>::max();
+        }
+
+        auto bytes_sent = ::send(_socket_handle, static_cast<const char*>(data), static_cast<int>(data_size), 0);
+        if (bytes_sent <= 0) {
+            return kstd::Error { fmt::format("Unable to write to socket => {}", get_last_error()) };
+        }
+        return bytes_sent;
+    }
+
     ClientSocket::ClientSocket(ClientSocket&& other) noexcept :
             Socket {} {
         Socket::_socket_handle = other._socket_handle;
