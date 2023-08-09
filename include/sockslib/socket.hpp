@@ -2,8 +2,12 @@
 
 #include <kstd/types.hpp>
 #include <kstd/result.hpp>
+#include <kstd/language.hpp>
 #include <string>
+
+#ifdef KSTD_CPP_20
 #include <span>
+#endif
 
 #ifdef PLATFORM_WINDOWS
 #define NOMINMAX
@@ -53,7 +57,9 @@ namespace sockslib {
 
         [[nodiscard]] auto write(void* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize>;
         [[nodiscard]] auto read(kstd::u8* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize>;
+#ifdef KSTD_CPP_20
         [[nodiscard]] auto read(std::span<kstd::u8> data) const noexcept -> kstd::Result<kstd::usize>;
+#endif
 
         auto operator=(const AcceptedSocket& other) -> AcceptedSocket& = delete;
         auto operator=(AcceptedSocket&& other) noexcept -> AcceptedSocket&;
@@ -88,7 +94,9 @@ namespace sockslib {
 
         [[nodiscard]] auto write(void* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize>;
         [[nodiscard]] auto read(kstd::u8* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize>;
+#ifdef KSTD_CPP_20
         [[nodiscard]] auto read(std::span<kstd::u8> data) const noexcept -> kstd::Result<kstd::usize>;
+#endif
 
         auto operator=(const ClientSocket& other) -> ClientSocket& = delete;
         auto operator=(ClientSocket&& other) noexcept -> ClientSocket&;

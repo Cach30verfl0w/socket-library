@@ -162,9 +162,11 @@ namespace sockslib {
         return bytes_read;
     }
 
+#ifdef KSTD_CPP_20
     auto ClientSocket::read(std::span<kstd::u8> data) const noexcept -> kstd::Result<kstd::usize> {
         return read(data.data(), data.size());
     }
+#endif
 
     auto ClientSocket::operator=(ClientSocket&& other) noexcept -> ClientSocket& {
         _socket_handle = other._socket_handle;
@@ -222,9 +224,11 @@ namespace sockslib {
         return bytes_read;
     }
 
+#ifdef KSTD_CPP_20
     auto AcceptedSocket::read(std::span<kstd::u8> data) const noexcept -> kstd::Result<kstd::usize> {
         return read(data.data(), data.size());
     }
+#endif
 
     auto AcceptedSocket::operator=(AcceptedSocket&& other) noexcept -> AcceptedSocket& {
         _socket_handle = other._socket_handle;
