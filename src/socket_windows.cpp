@@ -2,8 +2,9 @@
 #include "sockslib/socket.hpp"
 
 #include <fmt/format.h>
-#include <stdexcept>
+#include <iostream>
 #include <numeric>
+#include <stdexcept>
 
 #include <WS2tcpip.h>
 
@@ -21,16 +22,15 @@ namespace sockslib {
         constexpr auto lang_id = MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT);
         const auto new_length = ::FormatMessageW(
                 FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
-                error_code, lang_id, reinterpret_cast<LPWSTR>(&buffer), 0, nullptr);
+                error_code, lang_id, reinterpret_cast<LPWSTR>(&buffer), 0, nullptr);// NOLINT
         auto message = kstd::utils::to_mbs({buffer, new_length});
         LocalFree(buffer);
 
         return fmt::format("ERROR 0x{:X}: {}", error_code, message);
     }
 
-    Socket::Socket(ProtocolType protocol_type, kstd::u16 buffer_size) :// NOLINT
-            _protocol_type {protocol_type},
-            _buffer_size {buffer_size} {
+    Socket::Socket() :
+            _socket_handle {invalid_socket_handle} {
         if(_socket_count == 0) {
             WSADATA wsaData {};
             if(FAILED(WSAStartup(MAKEWORD(2, 2), &wsaData))) {
@@ -40,8 +40,8 @@ namespace sockslib {
         _socket_count++;
     }
 
-    ServerSocket::ServerSocket(kstd::u16 port, ProtocolType protocol_type, kstd::u16 buffer_size) :
-            Socket {protocol_type, buffer_size} {
+    ServerSocket::ServerSocket(kstd::u16 port, ProtocolType protocol_type) :
+            _protocol_type {protocol_type} {
         using namespace std::string_literals;
 
         // Configure address information hints
@@ -67,7 +67,7 @@ namespace sockslib {
 
         // Create the socket and do validation check
         _socket_handle = socket(_addr_info->ai_family, _addr_info->ai_socktype, _addr_info->ai_protocol);
-        if(handle_invalid(_socket_handle)) {
+        if(!handle_valid(_socket_handle)) {
             if(Socket::_socket_count == 1) {
                 WSACleanup();
             }
@@ -119,12 +119,10 @@ namespace sockslib {
     }
 
     ServerSocket::ServerSocket(ServerSocket&& other) noexcept :// NOLINT
-            Socket {},
-            _addr_info {other._addr_info} {
+            _addr_info {other._addr_info},
+            _protocol_type {other._protocol_type} {
         _socket_handle = other._socket_handle;
-        _protocol_type = other._protocol_type;
-        _buffer_size = other._buffer_size;
-        other._socket_handle = 0;
+        other._socket_handle = invalid_socket_handle;
         other._addr_info = nullptr;
         ++Socket::_socket_count;
     }
@@ -152,20 +150,28 @@ namespace sockslib {
         }
     }
 
+    auto ServerSocket::accept() const noexcept -> kstd::Result<AcceptedSocket> {
+        auto accepted_socket_handle = ::accept(_socket_handle, nullptr, nullptr);
+        if(!handle_valid(accepted_socket_handle)) {
+            return kstd::Error {fmt::format("Unable to accept socket => {}", get_last_error())};
+        }
+
+        return AcceptedSocket {accepted_socket_handle};
+    }
+
     auto ServerSocket::operator=(ServerSocket&& other) noexcept -> ServerSocket& {
         _socket_handle = other._socket_handle;
         _protocol_type = other._protocol_type;
-        _buffer_size = other._buffer_size;
         _addr_info = other._addr_info;
 
-        other._socket_handle = 0;
+        other._socket_handle = invalid_socket_handle;
         other._addr_info = nullptr;
         ++Socket::_socket_count;
         return *this;
     }
 
-    ClientSocket::ClientSocket(std::string address, kstd::u16 port, ProtocolType protocol_type, kstd::u16 buffer_size) :
-            Socket {protocol_type, buffer_size} {
+    ClientSocket::ClientSocket(std::string address, kstd::u16 port, ProtocolType protocol_type) :
+            _protocol_type {protocol_type} {
         using namespace std::string_literals;
 
         // Specify protocol
@@ -177,7 +183,7 @@ namespace sockslib {
 
         // Create socket handle and validate it
         _socket_handle = socket(AF_INET, static_cast<int>(protocol_type), protocol);
-        if(handle_invalid(_socket_handle)) {
+        if(!handle_valid(_socket_handle)) {
             if(Socket::_socket_count == 1) {
                 WSACleanup();
             }
@@ -187,7 +193,7 @@ namespace sockslib {
 
         // Generate SOCKADDR
         SOCKADDR_IN addr {};
-        if(FAILED(InetPton(AF_INET, address.c_str(), &addr.sin_addr.s_addr))) {
+        if(FAILED(InetPton(AF_INET, address.c_str(), &addr.sin_addr.s_addr))) {// NOLINT
             throw std::runtime_error {
                     "Unable to connect with socket => Failed conversion of literal address to binary address!"s};
         }
@@ -195,7 +201,8 @@ namespace sockslib {
         addr.sin_port = htons(port);
 
         // Establish connection
-        if(FAILED(connect(_socket_handle, reinterpret_cast<SOCKADDR*>(&addr), sizeof(addr)))) {
+
+        if(FAILED(connect(_socket_handle, reinterpret_cast<SOCKADDR*>(&addr), sizeof(addr)))) {// NOLINT
             // Free address info and close socket
             closesocket(_socket_handle);
 
@@ -217,12 +224,10 @@ namespace sockslib {
         }
     }
 
-    ClientSocket::ClientSocket(sockslib::ClientSocket&& other) noexcept :
-            Socket {} {
+    ClientSocket::ClientSocket(sockslib::ClientSocket&& other) noexcept :// NOLINT
+            _protocol_type {other._protocol_type} {
         _socket_handle = other._socket_handle;
-        _protocol_type = other._protocol_type;
-        _buffer_size = other._buffer_size;
-        other.Socket::_socket_handle = 0;
+        other.Socket::_socket_handle = invalid_socket_handle;
         ++Socket::_socket_count;
     }
 
@@ -244,26 +249,112 @@ namespace sockslib {
         }
     }
 
-    auto ClientSocket::write(void* data, kstd::usize data_size) noexcept -> kstd::Result<kstd::usize> {
+    auto ClientSocket::write(void* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize> {
         using namespace std::string_literals;
-        if (data_size > std::numeric_limits<int>::max()) {
-            data_size = std::numeric_limits<int>::max();
+        if (!handle_valid(_socket_handle)) {
+            return kstd::Error {"Unable to write with socket => Socket handle is invalid!"s};
         }
 
-        auto bytes_sent = ::send(_socket_handle, static_cast<const char*>(data), static_cast<int>(data_size), 0);
-        if (FAILED(bytes_sent)) {
-            return kstd::Error { fmt::format("Unable to write to socket => {}", get_last_error()) };
+        using namespace std::string_literals;
+        if(size > std::numeric_limits<int>::max()) {
+            size = std::numeric_limits<int>::max();
+        }
+
+        auto bytes_sent = ::send(_socket_handle, static_cast<const char*>(data), static_cast<int>(size), 0);
+        if(bytes_sent <= 0) {
+            return kstd::Error {fmt::format("Unable to write to socket => {}", get_last_error())};
         }
         return bytes_sent;
+    }
+
+    auto ClientSocket::read(kstd::u8* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize> {
+        using namespace std::string_literals;
+        if (!handle_valid(_socket_handle)) {
+            return kstd::Error {"Unable to read from socket => Socket handle is invalid!"s};
+        }
+
+        if(size > std::numeric_limits<int>::max()) {
+            size = std::numeric_limits<int>::max();
+        }
+
+        auto bytes_read = ::recv(_socket_handle, reinterpret_cast<char*>(data), static_cast<int>(size), 0);// NOLINT
+        if(bytes_read < 0) {
+            return kstd::Error {fmt::format("Unable to read from socket => {}", get_last_error())};
+        }
+        return bytes_read;
+    }
+
+    auto ClientSocket::read(std::span<kstd::u8> data) const noexcept -> kstd::Result<kstd::usize> {
+        return read(data.data(), data.size());
     }
 
     auto ClientSocket::operator=(ClientSocket&& other) noexcept -> ClientSocket& {
         _socket_handle = other._socket_handle;
         _protocol_type = other._protocol_type;
-        _buffer_size = other._buffer_size;
-        other.Socket::_socket_handle = 0;
+        other._socket_handle = invalid_socket_handle;
         ++Socket::_socket_count;
         return *this;
     }
+
+    AcceptedSocket::AcceptedSocket(sockslib::SocketHandle socket_handle) {
+        _socket_handle = socket_handle;
+    }
+
+    AcceptedSocket::AcceptedSocket(AcceptedSocket&& other) noexcept {// NOLINT
+        _socket_handle = other._socket_handle;
+        other._socket_handle = invalid_socket_handle;
+    }
+
+    AcceptedSocket::~AcceptedSocket() noexcept {
+        if(handle_valid(_socket_handle)) {
+            shutdown(_socket_handle, SD_SEND);
+            closesocket(_socket_handle);
+        }
+    }
+
+    auto AcceptedSocket::write(void* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize> {
+        using namespace std::string_literals;
+        if (!handle_valid(_socket_handle)) {
+            return kstd::Error {"Unable to write with socket => Socket handle is invalid!"s};
+        }
+
+        if(size > std::numeric_limits<int>::max()) {
+            size = std::numeric_limits<int>::max();
+        }
+
+        auto bytes_sent = ::send(_socket_handle, static_cast<const char*>(data), static_cast<int>(size), 0);
+        if(bytes_sent < 0) {
+            return kstd::Error {fmt::format("Unable to write with socket => {}", get_last_error())};
+        }
+        return bytes_sent;
+    }
+
+    auto AcceptedSocket::read(kstd::u8* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize> {
+        using namespace std::string_literals;
+        if (!handle_valid(_socket_handle)) {
+            return kstd::Error {"Unable to read from socket => Socket handle is invalid!"s};
+        }
+
+        if(size > std::numeric_limits<int>::max()) {
+            size = std::numeric_limits<int>::max();
+        }
+
+        auto bytes_read = ::recv(_socket_handle, reinterpret_cast<char*>(data), static_cast<int>(size), 0);// NOLINT
+        if(bytes_read < 0) {
+            return kstd::Error {fmt::format("Unable to read from socket => {}", get_last_error())};
+        }
+        return bytes_read;
+    }
+
+    auto AcceptedSocket::read(std::span<kstd::u8> data) const noexcept -> kstd::Result<kstd::usize> {
+        return read(data.data(), data.size());
+    }
+
+    auto AcceptedSocket::operator=(AcceptedSocket&& other) noexcept -> AcceptedSocket& {
+        _socket_handle = other._socket_handle;
+        other._socket_handle = invalid_socket_handle;
+        return *this;
+    }
+
 }// namespace sockslib
 #endif
