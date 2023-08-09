@@ -1,4 +1,4 @@
-#ifdef PLATFORM_MACOS
+#ifdef PLATFORM_APPLE
 #include "sockslib/socket.hpp"
 
 #include <arpa/inet.h>
