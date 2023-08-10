@@ -3,6 +3,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 namespace sockslib {
     auto resolve_address(std::string domain) -> kstd::Result<std::string> {

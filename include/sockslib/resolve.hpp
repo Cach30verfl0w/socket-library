@@ -11,6 +11,7 @@
 #include <string>
 
 namespace sockslib {
+
     enum class AddressType {
         IPV4 = PF_INET,
         IPV6 = PF_INET6

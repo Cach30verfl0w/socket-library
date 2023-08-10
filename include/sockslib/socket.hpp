@@ -19,19 +19,6 @@
 #endif
 
 namespace sockslib {
-#ifdef PLATFORM_WINDOWS
-    using SocketHandle = SOCKET;
-
-    constexpr auto handle_valid(SocketHandle handle) noexcept -> bool {
-        return handle != INVALID_SOCKET;
-    }
-#else
-    using SocketHandle = int;
-    constexpr auto handle_valid(SocketHandle handle) -> bool {
-        return handle > 0;
-    }
-#endif
-
     constexpr SocketHandle invalid_socket_handle = -1;
 
     enum class ProtocolType : kstd::u8 {
