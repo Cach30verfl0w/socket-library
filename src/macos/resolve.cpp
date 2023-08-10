@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 namespace sockslib {
-    auto resolve_address(std::string domain) -> kstd::Result<std::string> {
+    auto resolve_address(std::string domain) noexcept -> kstd::Result<std::string> {
         using namespace std::string_literals;
         struct hostent *hostent = gethostbyname(domain.data());
         if (hostent == nullptr) {
