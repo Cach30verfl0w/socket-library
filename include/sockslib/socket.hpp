@@ -3,6 +3,7 @@
 #include <kstd/types.hpp>
 #include <kstd/result.hpp>
 #include <kstd/language.hpp>
+#include <kstd/defaults.hpp>
 #include <string>
 
 #ifdef KSTD_CPP_20
@@ -39,12 +40,14 @@ namespace sockslib {
         UDP = SOCK_DGRAM
     };
 
-    class Socket {// NOLINT
+    class Socket {
         protected:
         SocketHandle _socket_handle;// NOLINT
         static kstd::atomic_usize _socket_count;// NOLINT
 
+        public:
         Socket();
+        KSTD_DEFAULT_MOVE_COPY(Socket, Socket);
         virtual ~Socket() = default;
     };
 
@@ -66,7 +69,7 @@ namespace sockslib {
     };
 
     // TODO: Support for UDP
-    class ServerSocket final : Socket {// NOLINT
+    class ServerSocket final : Socket {
         ProtocolType _protocol_type;
 #ifdef PLATFORM_WINDOWS
         PADDRINFOW _addr_info;
@@ -79,11 +82,19 @@ namespace sockslib {
 
         [[nodiscard]] auto accept() const noexcept -> kstd::Result<AcceptedSocket>;
 
+        [[nodiscard]] inline auto protocol_type() const noexcept -> ProtocolType {
+            return _protocol_type;
+        }
+
+        [[nodiscard]] inline auto socket_handle() const noexcept -> SocketHandle {
+            return _socket_handle;
+        }
+
         auto operator=(const ServerSocket& other) -> ServerSocket& = delete;
         auto operator=(ServerSocket&& other) noexcept -> ServerSocket&;
     };
 
-    class ClientSocket final : Socket {// NOLINT
+    class ClientSocket final : Socket {
         ProtocolType _protocol_type;
 
         public:
@@ -91,6 +102,14 @@ namespace sockslib {
         ClientSocket(const ClientSocket& other) = delete;
         ClientSocket(ClientSocket&& other) noexcept;
         ~ClientSocket() noexcept final;
+
+        [[nodiscard]] inline auto protocol_type() const noexcept -> ProtocolType {
+            return _protocol_type;
+        }
+
+        [[nodiscard]] inline auto socket_handle() const noexcept -> SocketHandle {
+            return _socket_handle;
+        }
 
         [[nodiscard]] auto write(void* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize>;
         [[nodiscard]] auto read(kstd::u8* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize>;
