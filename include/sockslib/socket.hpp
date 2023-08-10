@@ -5,6 +5,7 @@
 #include <kstd/language.hpp>
 #include <kstd/defaults.hpp>
 #include <string>
+#include "sockslib/utils.hpp"
 
 #ifdef KSTD_CPP_20
 #include <span>
@@ -33,8 +34,6 @@ namespace sockslib {
 
     constexpr SocketHandle invalid_socket_handle = -1;
 
-    [[nodiscard]] auto get_last_error() -> std::string;
-
     enum class ProtocolType : kstd::u8 {
         TCP = SOCK_STREAM,
         UDP = SOCK_DGRAM
@@ -43,9 +42,9 @@ namespace sockslib {
     class Socket {
         protected:
         SocketHandle _socket_handle;// NOLINT
+        public:
         static kstd::atomic_usize _socket_count;// NOLINT
 
-        public:
         Socket();
         KSTD_DEFAULT_MOVE_COPY(Socket, Socket);
         virtual ~Socket() = default;

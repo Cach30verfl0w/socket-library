@@ -4,7 +4,6 @@
 #include <kstd/safe_alloc.hpp>
 #include <thread>
 #include <iostream>
-#include <chrono>
 
 TEST(sockslib_ServerSocket, test_bind_tcp_socket) {
     using namespace sockslib;
