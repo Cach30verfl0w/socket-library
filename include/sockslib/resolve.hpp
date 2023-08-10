@@ -9,6 +9,7 @@
 
 #include <kstd/result.hpp>
 #include <string>
+#include "sockslib/utils.hpp"
 
 namespace sockslib {
 
