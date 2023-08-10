@@ -40,7 +40,7 @@ namespace sockslib {
         _socket_count++;
     }
 
-    ServerSocket::ServerSocket(kstd::u16 port, ProtocolType protocol_type) :
+    ServerSocket::ServerSocket(const kstd::u16 port, const ProtocolType protocol_type) :
             _protocol_type {protocol_type} {
         using namespace std::string_literals;
 
@@ -170,7 +170,7 @@ namespace sockslib {
         return *this;
     }
 
-    ClientSocket::ClientSocket(std::string address, kstd::u16 port, ProtocolType protocol_type) :
+    ClientSocket::ClientSocket(const std::string address, const kstd::u16 port, const ProtocolType protocol_type) :
             _protocol_type {protocol_type} {
         using namespace std::string_literals;
 

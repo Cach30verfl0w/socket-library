@@ -21,7 +21,7 @@ namespace sockslib {
             _socket_handle {invalid_socket_handle} {
     }
 
-    ServerSocket::ServerSocket(kstd::u16 port, ProtocolType protocol_type) :
+    ServerSocket::ServerSocket(const kstd::u16 port, const ProtocolType protocol_type) :
             _protocol_type {protocol_type} {
         // Create socket and validate socket
         kstd::u32 protocol = 0;
@@ -80,7 +80,7 @@ namespace sockslib {
         return *this;
     }
 
-    ClientSocket::ClientSocket(std::string address, kstd::u16 port, ProtocolType protocol_type) {
+    ClientSocket::ClientSocket(const std::string address, const kstd::u16 port, const ProtocolType protocol_type) {
         using namespace std::string_literals;
 
         // Create socket and validate socket
