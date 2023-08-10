@@ -6,7 +6,7 @@
 
 namespace sockslib {
 
-    auto resolve_address(const std::string domain, kstd::usize address_type) -> kstd::Result<std::string> {
+    auto resolve_address(const std::string domain, kstd::usize address_type) noexcept -> kstd::Result<std::string> {
         using namespace std::string_literals;
 
         // Startup WSA and increment socket count
@@ -69,20 +69,61 @@ namespace sockslib {
         return {address};
     }
 
-    auto resolve_address(const std::string domain) -> kstd::Result<std::string> {
-        // TODO: Check if IPv6 is working with internet access
-        auto ipv6_resolve_result = resolve_address(domain, DNS_TYPE_AAAA);
-        if(ipv6_resolve_result) {
-            return ipv6_resolve_result.get();
+    auto resolve_address(const std::string domain) noexcept -> kstd::Result<std::string> {
+        // Resolve IPv6 address if IPv6 enabled
+        const auto ipv6_supported = address_type_enabled(AddressType::IPV6);
+        if (!ipv6_supported) {
+            return kstd::Error {ipv6_supported.get_error()};
         }
 
-        // TODO: Check if IPv4 is working with internet access
-        const auto ipv4_resolve_result = resolve_address(domain, DNS_TYPE_A);
-        if(ipv4_resolve_result) {
-            return ipv4_resolve_result.get();
+        if (ipv6_supported.get()) {
+            auto ipv6_resolve_result = resolve_address(domain, DNS_TYPE_AAAA);
+            if(ipv6_resolve_result) {
+                return ipv6_resolve_result.get();
+            }
         }
 
-        return kstd::Error {ipv6_resolve_result.get_error()};
+        // Resolve IPv4 address if IPv4 enabled
+        const auto ipv4_supported = address_type_enabled(AddressType::IPV4);
+        if (!ipv4_supported) {
+            return kstd::Error {ipv4_supported.get_error()};
+        }
+
+        if (ipv4_supported.get()) {
+            const auto ipv4_resolve_result = resolve_address(domain, DNS_TYPE_A);
+            if(ipv4_resolve_result) {
+                return ipv4_resolve_result.get();
+            }
+
+            return kstd::Error {ipv4_resolve_result.get_error()};
+        }
+
+        using namespace std::string_literals;
+        return kstd::Error { "Unable to resolve address => IPv4 and IPv6 are not enabled"s };
+    }
+
+    auto address_type_enabled(AddressType type) noexcept -> kstd::Result<bool> {
+        // Startup WSA and increment socket count
+        if(Socket::_socket_count == 0) {
+            WSADATA wsaData {};
+            if(FAILED(WSAStartup(MAKEWORD(2, 2), &wsaData))) {
+                return kstd::Error {fmt::format("Unable to initialize WSA => {}", get_last_error())};
+            }
+        }
+        Socket::_socket_count++;
+
+        SocketHandle handle = socket(static_cast<int>(type), SOCK_DGRAM, 0);
+        bool is_valid = handle_valid(handle);
+        closesocket(handle);
+
+        // Cleanup WSA and decrement socket count
+        if(Socket::_socket_count == 1) {
+            if(FAILED(WSACleanup())) {
+                return kstd::Error {fmt::format("Unable to cleanup WSA => {}", get_last_error())};
+            }
+        }
+        Socket::_socket_count--;
+        return is_valid;
     }
 }// namespace sockslib
 #endif

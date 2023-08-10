@@ -19,5 +19,12 @@ namespace sockslib {
             return std::string(inet_ntoa(*(struct in_addr*)hostent->h_addr));
         }
     }
+
+    auto address_type_supported(AddressType type) noexcept -> kstd::Result<bool> {
+        SocketHandle handle = socket(static_cast<int>(type), SOCK_DGRAM, 0);
+        bool is_valid = handle_valid(handle);
+        close(handle);
+        return is_valid;
+    }
 }
 #endif
