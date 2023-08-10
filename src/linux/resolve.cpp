@@ -2,12 +2,12 @@
 #include "sockslib/resolve.hpp"
 #include <netdb.h>
 #include <arpa/inet.h>
-#include <sstream>
+#include <netinet/in.h>
 
 namespace sockslib {
     auto resolve_address(std::string domain) -> kstd::Result<std::string> {
         using namespace std::string_literals;
-        struct hostent *hostent = gethostbyname(domain.data());
+        const struct hostent *hostent = gethostbyname(domain.data());
         if (hostent == nullptr) {
             switch(h_errno) {
                 case HOST_NOT_FOUND: return kstd::Error { "The hsot was not found"s };
@@ -16,11 +16,7 @@ namespace sockslib {
                 case TRY_AGAIN: return kstd::Error { "The name server is temporarily unavailable"s };
             }
         } else {
-            unsigned char *addr = reinterpret_cast<unsigned char *>(hostent->h_addr_list[0]);
-
-            std::stringstream stringstream;
-            std::copy(addr, addr + 4, std::ostream_iterator<unsigned int>(stringstream, "."));
-            return std::string(stringstream.str());
+            return std::string(inet_ntoa(*(struct in_addr*)hostent->h_addr));
         }
     }
 }
