@@ -54,7 +54,7 @@ namespace sockslib {
 #endif
 
     inline auto is_domain(const std::string& address) noexcept -> bool {
-        return std::regex_match(address, std::regex(R"(\b((?=[a-z0-9-]{1,63}\.)[a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,63}\b)"));
+        return address == "localhost" || std::regex_match(address, std::regex(R"(\b((?=[a-z0-9-]{1,63}\.)[a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,63}\b)"));
     }
 
     inline auto is_ipv4_address(const std::string& address) noexcept -> bool {

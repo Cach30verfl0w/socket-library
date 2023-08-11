@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 #include <kstd/safe_alloc.hpp>
 #include <thread>
-#include <iostream>
 
 TEST(sockslib_ServerSocket, test_bind_tcp_socket) {
     using namespace sockslib;
@@ -22,7 +21,7 @@ TEST(sockslib_ClientSocket, test_connect_tcp_socket) {
     auto server_socket_result = kstd::try_construct<ServerSocket>(1337, ProtocolType::TCP);
     server_socket_result.throw_if_error();
 
-    auto socket_result = kstd::try_construct<ClientSocket>("127.0.0.1", 1337, ProtocolType::TCP);
+    auto socket_result = kstd::try_construct<ClientSocket>("localhost", 1337, ProtocolType::TCP);
     socket_result.throw_if_error();
 }
 
@@ -31,7 +30,7 @@ TEST(sockslib_ClientSocket, test_connect_udp_socket) {
     auto server_socket_result = kstd::try_construct<ServerSocket>(1337, ProtocolType::UDP);
     server_socket_result.throw_if_error();
 
-    auto socket_result = kstd::try_construct<ClientSocket>("127.0.0.1", 1337, ProtocolType::UDP);
+    auto socket_result = kstd::try_construct<ClientSocket>("localhost", 1337, ProtocolType::UDP);
     socket_result.throw_if_error();
 }
 

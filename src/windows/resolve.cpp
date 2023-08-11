@@ -65,19 +65,6 @@ namespace sockslib {
     }
 
     auto resolve_address(const std::string domain) noexcept -> kstd::Result<std::string> {
-        // Resolve IPv6 address if IPv6 enabled
-        const auto ipv6_supported = address_type_enabled(AddressType::IPV6);
-        if (!ipv6_supported) {
-            return kstd::Error {ipv6_supported.get_error()};
-        }
-
-        if (ipv6_supported.get()) {
-            auto ipv6_resolve_result = resolve_address(domain, DNS_TYPE_AAAA);
-            if(ipv6_resolve_result) {
-                return ipv6_resolve_result.get();
-            }
-        }
-
         // Resolve IPv4 address if IPv4 enabled
         const auto ipv4_supported = address_type_enabled(AddressType::IPV4);
         if (!ipv4_supported) {
@@ -91,6 +78,19 @@ namespace sockslib {
             }
 
             return kstd::Error {ipv4_resolve_result.get_error()};
+        }
+
+        // Resolve IPv6 address if IPv6 enabled
+        const auto ipv6_supported = address_type_enabled(AddressType::IPV6);
+        if (!ipv6_supported) {
+            return kstd::Error {ipv6_supported.get_error()};
+        }
+
+        if (ipv6_supported.get()) {
+            auto ipv6_resolve_result = resolve_address(domain, DNS_TYPE_AAAA);
+            if(ipv6_resolve_result) {
+                return ipv6_resolve_result.get();
+            }
         }
 
         using namespace std::string_literals;
