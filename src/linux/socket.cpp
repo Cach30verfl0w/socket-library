@@ -80,7 +80,7 @@ namespace sockslib {
         return *this;
     }
 
-    ClientSocket::ClientSocket(const std::string address, const kstd::u16 port, const ProtocolType protocol_type) {
+    ClientSocket::ClientSocket(std::string address, const kstd::u16 port, const ProtocolType protocol_type) {
         using namespace std::string_literals;
 
 #ifndef SOCKSLIB_NO_DNS_RESOLVE
