@@ -10,7 +10,7 @@ namespace sockslib {
         using namespace std::string_literals;
 
         // Startup WSA and increment socket count
-        auto wsa_init_result = init_wsa();
+        const auto wsa_init_result = init_wsa();
         if (!wsa_init_result) {
             return kstd::Error {wsa_init_result.get_error()};
         }
@@ -24,7 +24,6 @@ namespace sockslib {
             return kstd::Error {fmt::format("Unable to resolve address over DNS => {}", get_last_error())};
         }
 
-        std::string address;
         std::array<wchar_t, 128> address_buffer {};
         DWORD size = address_buffer.size();
         switch(record->wType) {
@@ -55,7 +54,7 @@ namespace sockslib {
         }
 
         // Cleanup WSA and decrement socket count
-        auto wsa_cleanup_result = cleanup_wsa();
+        const auto wsa_cleanup_result = cleanup_wsa();
         if (!wsa_cleanup_result) {
             return kstd::Error {wsa_cleanup_result.get_error()};
         }
@@ -100,17 +99,17 @@ namespace sockslib {
 
     auto address_type_enabled(AddressType type) noexcept -> kstd::Result<bool> {
         // Startup WSA and increment socket count
-        auto wsa_init_result = init_wsa();
+        const auto wsa_init_result = init_wsa();
         if (!wsa_init_result) {
             return kstd::Error {wsa_init_result.get_error()};
         }
 
-        SocketHandle handle = socket(static_cast<int>(type), SOCK_DGRAM, 0);
+        const SocketHandle handle = socket(static_cast<int>(type), SOCK_DGRAM, 0);
         bool is_valid = handle_valid(handle);
         closesocket(handle);
 
         // Cleanup WSA and decrement socket count
-        auto wsa_cleanup_result = cleanup_wsa();
+        const auto wsa_cleanup_result = cleanup_wsa();
         if (!wsa_cleanup_result) {
             return kstd::Error {wsa_cleanup_result.get_error()};
         }

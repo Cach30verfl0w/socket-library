@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 namespace sockslib {
-    auto resolve_address(std::string& domain) noexcept -> kstd::Result<std::string> {
+    auto resolve_address(std::string domain) noexcept -> kstd::Result<std::string> {
         using namespace std::string_literals;
         const struct hostent *hostent = gethostbyname(domain.data());
         if (hostent == nullptr) {
@@ -22,7 +22,7 @@ namespace sockslib {
     }
 
     auto address_type_supported(AddressType type) noexcept -> kstd::Result<bool> {
-        SocketHandle handle = socket(static_cast<int>(type), SOCK_DGRAM, 0);
+        const SocketHandle handle = socket(static_cast<int>(type), SOCK_DGRAM, 0);
         bool is_valid = handle_valid(handle);
         close(handle);
         return is_valid;

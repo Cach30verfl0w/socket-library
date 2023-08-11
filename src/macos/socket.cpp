@@ -84,12 +84,12 @@ namespace sockslib {
             address = resolve_address(address).get_or_throw();
         }
 #endif
-        auto address_type_result = recognize_address_type(address);
+        const auto address_type_result = recognize_address_type(address);
         if(!address_type_result) {
             throw std::runtime_error {
                     fmt::format("Unable to initialize socket => Unable to recognize address protocol")};
         }
-        auto address_type = static_cast<int>(address_type_result.get());
+        const auto address_type = static_cast<int>(address_type_result.get());
 
         // Create socket and validate socket
         _socket_handle = socket(address_type, static_cast<int>(protocol_type), 0);
