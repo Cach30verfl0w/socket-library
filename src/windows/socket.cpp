@@ -23,17 +23,9 @@
 #include <WS2tcpip.h>
 
 namespace sockslib {
-    kstd::atomic_usize Socket::_socket_count = 0;// NOLINT
-
     Socket::Socket() :
             _socket_handle {invalid_socket_handle} {
-        if(_socket_count == 0) {
-            WSADATA wsaData {};
-            if(FAILED(WSAStartup(MAKEWORD(2, 2), &wsaData))) {
-                throw std::runtime_error(fmt::format("Unable to initialize Socket => {}", get_last_error()));
-            }
-        }
-        _socket_count++;
+        init_wsa().throw_if_error();
     }
 
     ServerSocket::ServerSocket(const kstd::u16 port, const ProtocolType protocol_type) :
@@ -52,25 +44,18 @@ namespace sockslib {
 
         // Request address information
         if(FAILED(GetAddrInfoW(nullptr, std::to_wstring(port).c_str(), &hints, &_addr_info))) {
-            if(Socket::_socket_count == 1) {
-                WSACleanup();
-                --Socket::_socket_count;
-
-                throw std::runtime_error(
-                        fmt::format("Unable to initialize server (Address info resolve failed) => ", get_last_error()));
-            }
+            cleanup_wsa();
+            throw std::runtime_error(
+                    fmt::format("Unable to initialize server (Address info resolve failed) => ", get_last_error()));
         }
 
         // Create the socket and do validation check
         _socket_handle = socket(_addr_info->ai_family, _addr_info->ai_socktype, _addr_info->ai_protocol);
         if(!handle_valid(_socket_handle)) {
-            if(Socket::_socket_count == 1) {
-                WSACleanup();
-            }
+            cleanup_wsa();
 
             FreeAddrInfoW(_addr_info);
             _addr_info = nullptr;
-            --Socket::_socket_count;
 
             throw std::runtime_error(
                     fmt::format("Unable to initialize server (Socket creation failed) => {}", get_last_error()));
@@ -78,14 +63,11 @@ namespace sockslib {
 
         // Bind the socket
         if(FAILED(::bind(_socket_handle, _addr_info->ai_addr, static_cast<int>(_addr_info->ai_addrlen)))) {
-            if(Socket::_socket_count == 1) {
-                WSACleanup();
-            }
+            cleanup_wsa();
 
             FreeAddrInfoW(_addr_info);
             closesocket(_socket_handle);
             _addr_info = nullptr;
-            --Socket::_socket_count;
 
             throw std::runtime_error(
                     fmt::format("Unable to initialize server (Socket binding failed) => {}", get_last_error()));
@@ -94,14 +76,11 @@ namespace sockslib {
         // Call the listen function if the socket is using TCP
         if(protocol_type == ProtocolType::TCP) {
             if(FAILED(listen(_socket_handle, SOMAXCONN))) {
-                if(Socket::_socket_count == 1) {
-                    WSACleanup();
-                }
+                cleanup_wsa();
 
                 FreeAddrInfoW(_addr_info);
                 closesocket(_socket_handle);
                 _addr_info = nullptr;
-                --Socket::_socket_count;
 
                 auto last_error = get_last_error();
                 if(last_error.empty()) {
@@ -120,7 +99,7 @@ namespace sockslib {
         _socket_handle = other._socket_handle;
         other._socket_handle = invalid_socket_handle;
         other._addr_info = nullptr;
-        ++Socket::_socket_count;
+        ++_wsa_user_count;
     }
 
     ServerSocket::~ServerSocket() noexcept {
@@ -135,15 +114,8 @@ namespace sockslib {
             closesocket(_socket_handle);
         }
 
-        // Cleanup WSA if socket count is 1
-        if(_socket_count == 1) {
-            WSACleanup();
-        }
-
-        // Decrement socket count if socket count is higher than 0
-        if(Socket::_socket_count > 0) {
-            --Socket::_socket_count;
-        }
+        // Cleanup WSA if socket count is 1 and decrement socket count
+        cleanup_wsa();
     }
 
     auto ServerSocket::accept() const noexcept -> kstd::Result<AcceptedSocket> {
@@ -162,7 +134,7 @@ namespace sockslib {
 
         other._socket_handle = invalid_socket_handle;
         other._addr_info = nullptr;
-        ++Socket::_socket_count;
+        ++_wsa_user_count;
         return *this;
     }
 
@@ -180,10 +152,7 @@ namespace sockslib {
         // Create socket handle and validate it
         _socket_handle = socket(AF_INET, static_cast<int>(protocol_type), protocol);
         if(!handle_valid(_socket_handle)) {
-            if(Socket::_socket_count == 1) {
-                WSACleanup();
-            }
-            --Socket::_socket_count;
+            cleanup_wsa();
             throw std::runtime_error {fmt::format("Unable to initialize socket => {}", get_last_error())};
         }
 
@@ -203,13 +172,7 @@ namespace sockslib {
             closesocket(_socket_handle);
 
             // Cleanup WSA and decrement socket count
-            if(_socket_count == 1) {
-                WSACleanup();
-            }
-
-            if(_socket_count > 0) {
-                --_socket_count;
-            }
+            cleanup_wsa();
 
             auto last_error = get_last_error();
             if(last_error.empty()) {
@@ -224,7 +187,7 @@ namespace sockslib {
             _protocol_type {other._protocol_type} {
         _socket_handle = other._socket_handle;
         other.Socket::_socket_handle = invalid_socket_handle;
-        ++Socket::_socket_count;
+        ++_wsa_user_count;
     }
 
     ClientSocket::~ClientSocket() noexcept {
@@ -234,20 +197,13 @@ namespace sockslib {
             closesocket(_socket_handle);
         }
 
-        // Cleanup WSA if socket count is 1
-        if(_socket_count == 1) {
-            WSACleanup();
-        }
-
-        // Decrement socket count if socket count is higher than 0
-        if(Socket::_socket_count > 0) {
-            --Socket::_socket_count;
-        }
+        // Cleanup WSA if socket count is 1 and decrement socket count
+        cleanup_wsa();
     }
 
     auto ClientSocket::write(void* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize> {
         using namespace std::string_literals;
-        if (!handle_valid(_socket_handle)) {
+        if(!handle_valid(_socket_handle)) {
             return kstd::Error {"Unable to write with socket => Socket handle is invalid!"s};
         }
 
@@ -265,7 +221,7 @@ namespace sockslib {
 
     auto ClientSocket::read(kstd::u8* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize> {
         using namespace std::string_literals;
-        if (!handle_valid(_socket_handle)) {
+        if(!handle_valid(_socket_handle)) {
             return kstd::Error {"Unable to read from socket => Socket handle is invalid!"s};
         }
 
@@ -290,7 +246,7 @@ namespace sockslib {
         _socket_handle = other._socket_handle;
         _protocol_type = other._protocol_type;
         other._socket_handle = invalid_socket_handle;
-        ++Socket::_socket_count;
+        ++_wsa_user_count;
         return *this;
     }
 
@@ -312,7 +268,7 @@ namespace sockslib {
 
     auto AcceptedSocket::write(void* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize> {
         using namespace std::string_literals;
-        if (!handle_valid(_socket_handle)) {
+        if(!handle_valid(_socket_handle)) {
             return kstd::Error {"Unable to write with socket => Socket handle is invalid!"s};
         }
 
@@ -329,7 +285,7 @@ namespace sockslib {
 
     auto AcceptedSocket::read(kstd::u8* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize> {
         using namespace std::string_literals;
-        if (!handle_valid(_socket_handle)) {
+        if(!handle_valid(_socket_handle)) {
             return kstd::Error {"Unable to read from socket => Socket handle is invalid!"s};
         }
 

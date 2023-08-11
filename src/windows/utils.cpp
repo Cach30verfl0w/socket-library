@@ -1,13 +1,13 @@
 #ifdef PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <kstd/utils.hpp>
-#include <fmt/format.h>
 #include <Windows.h>
 
 #include "sockslib/utils.hpp"
 
 namespace sockslib {
-    [[nodiscard]] auto get_last_error() -> std::string {
+
+    auto get_last_error() noexcept -> std::string {
         const auto error_code = ::GetLastError();
 
         if(error_code == 0) {

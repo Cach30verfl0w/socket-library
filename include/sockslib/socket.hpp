@@ -29,9 +29,8 @@ namespace sockslib {
     class Socket {
         protected:
         SocketHandle _socket_handle;// NOLINT
-        public:
-        static kstd::atomic_usize _socket_count;// NOLINT
 
+        public:
         Socket();
         KSTD_DEFAULT_MOVE_COPY(Socket, Socket);
         virtual ~Socket() = default;

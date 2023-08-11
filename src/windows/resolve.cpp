@@ -10,25 +10,17 @@ namespace sockslib {
         using namespace std::string_literals;
 
         // Startup WSA and increment socket count
-        if(Socket::_socket_count == 0) {
-            WSADATA wsaData {};
-            if(FAILED(WSAStartup(MAKEWORD(2, 2), &wsaData))) {
-                return kstd::Error {fmt::format("Unable to initialize WSA => {}", get_last_error())};
-            }
+        auto wsa_init_result = init_wsa();
+        if (!wsa_init_result) {
+            return kstd::Error {wsa_init_result.get_error()};
         }
-        Socket::_socket_count++;
 
         // Run query and store everything in record pointer
         PDNS_RECORD record = nullptr;
         if(FAILED(DnsQuery(domain.data(), static_cast<WORD>(address_type), DNS_QUERY_STANDARD | DNS_QUERY_BYPASS_CACHE,
                            nullptr, &record, nullptr))) {
             // Cleanup WSA and decrement socket count
-            if(Socket::_socket_count == 1) {
-                if(FAILED(WSACleanup())) {
-                    return kstd::Error {fmt::format("Unable to cleanup WSA => {}", get_last_error())};
-                }
-            }
-            Socket::_socket_count--;
+            cleanup_wsa();
             return kstd::Error {fmt::format("Unable to resolve address over DNS => {}", get_last_error())};
         }
 
@@ -60,12 +52,10 @@ namespace sockslib {
         }
 
         // Cleanup WSA and decrement socket count
-        if(Socket::_socket_count == 1) {
-            if(FAILED(WSACleanup())) {
-                return kstd::Error {fmt::format("Unable to cleanup WSA => {}", get_last_error())};
-            }
+        auto wsa_cleanup_result = cleanup_wsa();
+        if (!wsa_cleanup_result) {
+            return kstd::Error {wsa_cleanup_result.get_error()};
         }
-        Socket::_socket_count--;
         return {address};
     }
 
@@ -104,25 +94,20 @@ namespace sockslib {
 
     auto address_type_enabled(AddressType type) noexcept -> kstd::Result<bool> {
         // Startup WSA and increment socket count
-        if(Socket::_socket_count == 0) {
-            WSADATA wsaData {};
-            if(FAILED(WSAStartup(MAKEWORD(2, 2), &wsaData))) {
-                return kstd::Error {fmt::format("Unable to initialize WSA => {}", get_last_error())};
-            }
+        auto wsa_init_result = init_wsa();
+        if (!wsa_init_result) {
+            return kstd::Error {wsa_init_result.get_error()};
         }
-        Socket::_socket_count++;
 
         SocketHandle handle = socket(static_cast<int>(type), SOCK_DGRAM, 0);
         bool is_valid = handle_valid(handle);
         closesocket(handle);
 
         // Cleanup WSA and decrement socket count
-        if(Socket::_socket_count == 1) {
-            if(FAILED(WSACleanup())) {
-                return kstd::Error {fmt::format("Unable to cleanup WSA => {}", get_last_error())};
-            }
+        auto wsa_cleanup_result = cleanup_wsa();
+        if (!wsa_cleanup_result) {
+            return kstd::Error {wsa_cleanup_result.get_error()};
         }
-        Socket::_socket_count--;
         return is_valid;
     }
 }// namespace sockslib
