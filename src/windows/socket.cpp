@@ -16,7 +16,6 @@
 #include "sockslib/socket.hpp"
 
 #include "fmt/format.h"
-#include <iostream>
 #include <numeric>
 #include <stdexcept>
 
@@ -138,7 +137,7 @@ namespace sockslib {
         return *this;
     }
 
-    ClientSocket::ClientSocket(const std::string address, const kstd::u16 port, const ProtocolType protocol_type) :
+    ClientSocket::ClientSocket(std::string address, const kstd::u16 port, const ProtocolType protocol_type) :
             _protocol_type {protocol_type} {
         using namespace std::string_literals;
 
@@ -149,8 +148,21 @@ namespace sockslib {
             case ProtocolType::UDP: protocol = IPPROTO_UDP; break;
         }
 
+#ifndef SOCKSLIB_NO_DNS_RESOLVE
+        // Resolve address if domain
+        if(is_domain(address)) {
+            address = resolve_address(address).get_or_throw();
+        }
+#endif
+        auto address_type_result = recognize_address_type(address);
+        if(!address_type_result) {
+            throw std::runtime_error {
+                    fmt::format("Unable to initialize socket => Unable to recognize address protocol")};
+        }
+        auto address_type = static_cast<int>(address_type_result.get());
+
         // Create socket handle and validate it
-        _socket_handle = socket(AF_INET, static_cast<int>(protocol_type), protocol);
+        _socket_handle = socket(address_type, static_cast<int>(protocol_type), protocol);
         if(!handle_valid(_socket_handle)) {
             cleanup_wsa();
             throw std::runtime_error {fmt::format("Unable to initialize socket => {}", get_last_error())};
@@ -158,11 +170,12 @@ namespace sockslib {
 
         // Generate SOCKADDR
         SOCKADDR_IN addr {};
-        if(FAILED(InetPton(AF_INET, address.c_str(), &addr.sin_addr.s_addr))) {// NOLINT
+        if(FAILED(InetPton(address_type, address.c_str(),// NOLINT
+                           &addr.sin_addr.s_addr))) {
             throw std::runtime_error {
                     "Unable to connect with socket => Failed conversion of literal address to binary address!"s};
         }
-        addr.sin_family = AF_INET;
+        addr.sin_family = address_type;
         addr.sin_port = htons(port);
 
         // Establish connection

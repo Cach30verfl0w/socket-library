@@ -1,3 +1,4 @@
+#pragma once
 #ifdef PLATFORM_WINDOWS
 #define NOMINMAX
 #include <WS2tcpip.h>
@@ -11,7 +12,6 @@
 #include <kstd/option.hpp>
 #include <kstd/tuple.hpp>
 #include <string>
-#include <iostream>
 #include "sockslib/utils.hpp"
 
 namespace sockslib {

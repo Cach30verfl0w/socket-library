@@ -6,6 +6,7 @@
 #include <kstd/defaults.hpp>
 #include <string>
 #include "sockslib/utils.hpp"
+#include "sockslib/resolve.hpp"
 
 #ifdef KSTD_CPP_20
 #include <span>

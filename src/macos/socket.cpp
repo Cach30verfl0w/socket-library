@@ -75,21 +75,34 @@ namespace sockslib {
         return *this;
     }
 
-    ClientSocket::ClientSocket(const std::string address, const kstd::u16 port, const ProtocolType protocol_type) {
+    ClientSocket::ClientSocket(std::string address, const kstd::u16 port, const ProtocolType protocol_type) {
         using namespace std::string_literals;
 
+#ifndef SOCKSLIB_NO_DNS_RESOLVE
+        // Resolve address if domain
+        if(is_domain(address)) {
+            address = resolve_address(address).get_or_throw();
+        }
+#endif
+        auto address_type_result = recognize_address_type(address);
+        if(!address_type_result) {
+            throw std::runtime_error {
+                    fmt::format("Unable to initialize socket => Unable to recognize address protocol")};
+        }
+        auto address_type = static_cast<int>(address_type_result.get());
+
         // Create socket and validate socket
-        _socket_handle = socket(PF_INET, static_cast<int>(protocol_type), 0);
+        _socket_handle = socket(address_type, static_cast<int>(protocol_type), 0);
         if(!handle_valid(_socket_handle)) {
             throw std::runtime_error {fmt::format("Unable to initialize socket => {}", get_last_error())};
         }
 
         // Convert address to binary representation
         struct sockaddr_in sockaddr {};
-        sockaddr.sin_family = AF_INET;
+        sockaddr.sin_family = address_type;
         sockaddr.sin_port = htons(port);
 
-        if(inet_pton(AF_INET, address.c_str(), &sockaddr.sin_addr) <= 0) {
+        if(inet_pton(address_type, address.c_str(), &sockaddr.sin_addr) <= 0) {
             // Free address info and close socket
             close(_socket_handle);
 
@@ -137,7 +150,7 @@ namespace sockslib {
 
     auto ClientSocket::read(kstd::u8* data, kstd::usize size) const noexcept -> kstd::Result<kstd::usize> {
         using namespace std::string_literals;
-        if (!handle_valid(_socket_handle)) {
+        if(!handle_valid(_socket_handle)) {
             return kstd::Error {"Unable to read from socket => Socket handle is invalid!"s};
         }
 
