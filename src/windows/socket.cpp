@@ -18,7 +18,6 @@
 #include "fmt/format.h"
 #include <numeric>
 #include <stdexcept>
-#include <iostream>
 
 #include <WS2tcpip.h>
 
